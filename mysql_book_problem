@@ -1,0 +1,138 @@
+
+1.1. Setting Up a MySQL User Account
+	Problem
+	You need an account for connecting to your MySQL server.
+
+	% mysql -h localhost -u root -p
+	Enter password: ******
+	mysql> CREATE USER 'cbuser'@'localhost' IDENTIFIED BY 'cbpass'; mysql> GRANT ALL ON cookbook.* TO 'cbuser'@'localhost';
+	Query OK, 0 rows affected (0.09 sec)
+	mysql> quit
+	Bye
+
+1.2. Creating a Database and a Sample Table
+	Problem
+	You want to create a database and set up tables within it.
+
+	CREATE DATABASE cookbook;
+	USE cookbook;
+	CREATE TABLE limbs (thing VARCHAR(20), legs INT, arms INT);
+
+1.3. What to Do if mysql Cannot Be Found
+	Problem
+	When you invoke mysql from the command line, your command interpreter can’t find it.
+
+1.4. Specifying mysql Command Options
+	Problem
+	When you invoke the mysql program without command options, it exits immediately with an “access denied” message.
+
+
+	% mysqldump -h localhost -u cbuser -p cookbook > cookbook.sql 
+	Enter password: cbpass
+	% mysqladmin -h localhost -u root -p shutdown
+	Enter password: 	← enter MySQL root account password here
+	-ppassword (with no space between the option and the password) or --password=password
+	Specifying connection parameters using option files
+	# general client program connection options
+    [client]
+    host     = localhost
+    user     = cbuser
+    password = cbpass
+    # options specific to the mysql program
+    [mysql]
+    skip-auto-rehash
+    pager="/usr/bin/less -E" # specify pager for interactive mode
+    Protecting option files from other users
+    % chmod 600 .my.cnf
+	% chmod go-rwx .my.cnf
+
+1.5. Executing SQL Statements Interactively
+	Problem
+	You’ve started mysql. Now you want to send SQL statements to the MySQL server to be executed.
+
+	mysql> SELECT NOW();
+	mysql> SELECT NOW()\g
+	mysql> SHOW FULL COLUMNS FROM limbs LIKE 'thing'\G
+	To execute a statement directly from the command line, specify it using the -e (or -- execute) option. 
+	% mysql -e "SELECT COUNT(*) FROM limbs" cookbook
+	% mysql -e "SELECT COUNT(*) FROM limbs;SELECT NOW()" cookbook
+
+1.6. Executing SQL Statements Read from a File or Program
+	Problem
+	You want mysql to read statements stored in a file so that you need not enter them manually. Or you want mysql to read the output from another program.
+
+	% mysql cookbook < file_name
+	limbs.sql
+	DROP TABLE IF EXISTS limbs; 
+	CREATE TABLE limbs
+	(
+	thing VARCHAR(20), # what the thing is legs INT, # number of legs it has arms INT # number of arms it has
+	);
+	INSERT INTO limbs (thing,legs,arms) VALUES('human',2,2);
+	INSERT INTO limbs (thing,legs,arms) VALUES('insect',6,0);
+	INSERT INTO limbs (thing,legs,arms) VALUES('squid',0,10);
+	INSERT INTO limbs (thing,legs,arms) VALUES('fish',0,0);
+	INSERT INTO limbs (thing,legs,arms) VALUES('centipede',100,0); INSERT INTO limbs (thing,legs,arms) VALUES('table',4,0);
+	INSERT INTO limbs (thing,legs,arms) VALUES('armchair',4,2);
+	INSERT INTO limbs (thing,legs,arms) VALUES('phonograph',0,1); INSERT INTO limbs (thing,legs,arms) VALUES('tripod',3,0);
+	INSERT INTO limbs (thing,legs,arms) VALUES('Peg Leg Pete',1,2); INSERT INTO limbs (thing,legs,arms) VALUES('space alien',NULL,NULL);
+	% mysql cookbook < limbs.sql
+	mysql> source limbs.sql;
+	mysql> \. limbs.sql;
+	% mysqldump cookbook > dump.sql
+	% mysql -h other-host.example.com cookbook < dump.sql
+	The dump-and-reload example can be rewritten to connect the two programs directly with a pipe, avoiding the need for an intermediary file:
+	% mysqldump cookbook | mysql -h other-host.example.com cookbook
+
+1.7. Controlling mysql Output Destination and Format
+	Problem
+	You want mysql output to go somewhere other than your screen. And you don’t neces‐ sarily want the default output format.
+
+	% mysql cookbook > outputfile
+	% mysql cookbook < inputfile > outputfile
+	% mysql cookbook < inputfile | mail paul
+	% mysql
+	mysql> SELECT * FROM limbs WHERE legs=0;
+	% echo "SELECT * FROM limbs WHERE legs=0" | mysql -h localhost -u cbuser -pcbpass cookbook
+	mysql generates an HTML table from each query result set if you use the -H (or -- html) option.
+	% mysql -h localhost -u cbuser -pcbpass -H -e "SELECT * FROM limbs WHERE legs=0" cookbook
+	You can save the output in a file, then view it with a web browser.
+	% mysql -H -e "SELECT * FROM limbs WHERE legs=0" cookbook > limbs.html 
+	% open -a safari limbs.html
+	To generate an XML document instead of HTML, use the -X (or --xml) option:
+	% mysql -X -e "SELECT * FROM limbs WHERE legs=0" cookbook
+	% mysql -h localhost -u cbuser -pcbpass -X -e "SELECT * FROM limbs WHERE legs=0" cookbook  | xsltproc mysql-xml.xsl -
+	Specifying the output column delimiter
+	% mysql cookbook < inputfile | sed -e "s/TAB/:/g" > outputfile 
+	% mysql cookbook < inputfile | tr "TAB" ":" > outputfile
+	% mysql cookbook < inputfile | tr "\011" ":" > outputfile
+	comma- separated values (CSV) format
+	% mysql cookbook < inputfile | sed -e 's/"/""/g' -e 's/TAB/","/g' -e 's/^/"/' -e 's/$/"/' > outputfile
+	Controlling mysql’s verbosity level
+	% echo "SELECT NOW()" | mysql
+	% echo "SELECT NOW()" | mysql -v 
+	% echo "SELECT NOW()" | mysql -vv 
+	% echo "SELECT NOW()" | mysql -vvv
+
+1.8. Using User-Defined Variables in SQL Statements
+	Problem
+	You want to use a value in one statement that is produced by an earlier statement.
+
+	mysql> SELECT @max_limbs := MAX(arms+legs) FROM limbs;
+	mysql> SELECT * FROM limbs WHERE arms+legs = @max_limbs;
+	mysql> SELECT @last_id := LAST_INSERT_ID();
+	User variables hold single values. If a statement returns multiple rows, the value from the last row is assigned:
+	mysql> SELECT @name := thing FROM limbs WHERE legs = 0;
+	mysql> SELECT @name;
+	If the statement returns no rows, no assignment takes place, and the variable retains its previous value. If the variable has not been used previously, its value is NULL:
+	mysql> SELECT @name2 := thing FROM limbs WHERE legs < 0;
+	mysql> SELECT @name2;
+	To set a variable explicitly to a particular value, use a SET statement. SET syntax can use either := or = as the assignment operator:
+	mysql> SET @sum = 4 + 7; 
+	mysql> SELECT @sum;
+	mysql> SET @max_limbs = (SELECT MAX(arms+legs) FROM limbs);
+	User variable names are not case sensitive:
+	mysql> SET @x = 1, @X = 2; SELECT @x, @X;
+
+
+
